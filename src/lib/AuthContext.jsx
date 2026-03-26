@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabaseClient';
 import { getCurrentUserProfile } from '@/lib/db';
 
 const AuthContext = createContext();
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -55,11 +54,47 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
+  const login = async (email, password) => {
+    try {
+      setAuthError(null);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+      return { ok: true };
+    } catch (error) {
+      setAuthError({
+        type: 'auth_required',
+        message: error.message || 'Authentication failed',
+      });
+      return { ok: false, error };
+    }
+  };
+
+  const signup = async (email, password, fullName) => {
+    try {
+      setAuthError(null);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName || '' },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
+      return {
+        ok: true,
+        needsEmailConfirm: !data.session,
+      };
+    } catch (error) {
+      setAuthError({
+        type: 'auth_required',
+        message: error.message || 'Sign up failed',
+      });
+      return { ok: false, error };
+    }
   };
 
   const logout = async () => {
@@ -70,7 +105,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToLogin = () => {
-    login();
+    setAuthError({
+      type: 'auth_required',
+      message: 'Please log in to continue',
+    });
   };
 
   return (
@@ -79,6 +117,7 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated,
       isLoading,
       login,
+      signup,
       logout,
       // Backward compatibility for existing screens.
       isLoadingAuth: isLoading,

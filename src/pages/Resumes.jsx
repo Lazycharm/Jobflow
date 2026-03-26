@@ -34,27 +34,32 @@ export default function Resumes() {
   const handleUpload = async () => {
     if (!selectedFile) { toast.error('Please select a file'); return; }
     if (!uploadName.trim()) { toast.error('Please enter a name for this resume'); return; }
-    setUploading(true);
-    const filePath = `${Date.now()}-${selectedFile.name}`;
-    const { error: uploadError } = await supabase.storage.from('resumes').upload(filePath, selectedFile, {
-      upsert: false,
-    });
-    if (uploadError) throw uploadError;
-    const { data: fileData } = supabase.storage.from('resumes').getPublicUrl(filePath);
-    const file_url = fileData.publicUrl;
-    const isFirst = resumes.length === 0;
-    await createRow('resumes', {
-      name: uploadName.trim(),
-      file_url,
-      file_name: selectedFile.name,
-      is_default: isFirst,
-    });
-    toast.success('Resume uploaded successfully');
-    queryClient.invalidateQueries({ queryKey: ['resumes'] });
-    setSelectedFile(null);
-    setUploadName('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setUploading(false);
+    try {
+      setUploading(true);
+      const filePath = `${Date.now()}-${selectedFile.name}`;
+      const { error: uploadError } = await supabase.storage.from('resumes').upload(filePath, selectedFile, {
+        upsert: false,
+      });
+      if (uploadError) throw uploadError;
+      const { data: fileData } = supabase.storage.from('resumes').getPublicUrl(filePath);
+      const file_url = fileData.publicUrl;
+      const isFirst = resumes.length === 0;
+      await createRow('resumes', {
+        name: uploadName.trim(),
+        file_url,
+        file_name: selectedFile.name,
+        is_default: isFirst,
+      });
+      toast.success('Resume uploaded successfully');
+      queryClient.invalidateQueries({ queryKey: ['resumes'] });
+      setSelectedFile(null);
+      setUploadName('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (error) {
+      toast.error(error?.message || 'Resume upload failed');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleDelete = async (id) => {

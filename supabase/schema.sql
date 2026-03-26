@@ -145,6 +145,15 @@ create table if not exists public.scheduled_emails (
   updated_at timestamptz not null default now()
 );
 
+drop trigger if exists set_profiles_updated_at on public.profiles;
+drop trigger if exists set_email_templates_updated_at on public.email_templates;
+drop trigger if exists set_resumes_updated_at on public.resumes;
+drop trigger if exists set_smtp_settings_updated_at on public.smtp_settings;
+drop trigger if exists set_automation_rules_updated_at on public.automation_rules;
+drop trigger if exists set_job_applications_updated_at on public.job_applications;
+drop trigger if exists set_email_messages_updated_at on public.email_messages;
+drop trigger if exists set_scheduled_emails_updated_at on public.scheduled_emails;
+
 create trigger set_profiles_updated_at before update on public.profiles for each row execute function public.set_updated_at();
 create trigger set_email_templates_updated_at before update on public.email_templates for each row execute function public.set_updated_at();
 create trigger set_resumes_updated_at before update on public.resumes for each row execute function public.set_updated_at();
@@ -163,6 +172,15 @@ alter table public.job_applications enable row level security;
 alter table public.email_messages enable row level security;
 alter table public.scheduled_emails enable row level security;
 
+drop policy if exists "profiles_owner_all" on public.profiles;
+drop policy if exists "email_templates_owner_all" on public.email_templates;
+drop policy if exists "resumes_owner_all" on public.resumes;
+drop policy if exists "smtp_settings_owner_all" on public.smtp_settings;
+drop policy if exists "automation_rules_owner_all" on public.automation_rules;
+drop policy if exists "job_applications_owner_all" on public.job_applications;
+drop policy if exists "email_messages_owner_all" on public.email_messages;
+drop policy if exists "scheduled_emails_owner_all" on public.scheduled_emails;
+
 create policy "profiles_owner_all" on public.profiles for all using (auth.uid() = id) with check (auth.uid() = id);
 create policy "email_templates_owner_all" on public.email_templates for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "resumes_owner_all" on public.resumes for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -171,3 +189,37 @@ create policy "automation_rules_owner_all" on public.automation_rules for all us
 create policy "job_applications_owner_all" on public.job_applications for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "email_messages_owner_all" on public.email_messages for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "scheduled_emails_owner_all" on public.scheduled_emails for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+insert into storage.buckets (id, name, public)
+values ('resumes', 'resumes', true)
+on conflict (id) do nothing;
+
+drop policy if exists "resumes_bucket_upload_auth" on storage.objects;
+drop policy if exists "resumes_bucket_update_auth" on storage.objects;
+drop policy if exists "resumes_bucket_delete_auth" on storage.objects;
+drop policy if exists "resumes_bucket_read_public" on storage.objects;
+
+create policy "resumes_bucket_upload_auth"
+on storage.objects
+for insert
+to authenticated
+with check (bucket_id = 'resumes');
+
+create policy "resumes_bucket_update_auth"
+on storage.objects
+for update
+to authenticated
+using (bucket_id = 'resumes')
+with check (bucket_id = 'resumes');
+
+create policy "resumes_bucket_delete_auth"
+on storage.objects
+for delete
+to authenticated
+using (bucket_id = 'resumes');
+
+create policy "resumes_bucket_read_public"
+on storage.objects
+for select
+to public
+using (bucket_id = 'resumes');
