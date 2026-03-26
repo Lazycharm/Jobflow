@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -166,6 +166,9 @@ export default function EmailTemplates() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editId ? 'Edit Template' : 'New Template'}</DialogTitle>
+            <DialogDescription>
+              Create or update a reusable email template.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
@@ -204,6 +207,9 @@ export default function EmailTemplates() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Template Preview</DialogTitle>
+            <DialogDescription>
+              Preview this template with sample variable values.
+            </DialogDescription>
           </DialogHeader>
           {previewData && (
             <div className="space-y-4 py-2">
