@@ -50,15 +50,21 @@ export default function AutomationRules() {
     if (form.followup2_delay_days <= form.followup1_delay_days) { toast.error('Follow-up 2 delay must be greater than Follow-up 1'); return; }
     if (form.daily_send_limit < 1 || form.daily_send_limit > 50) { toast.error('Daily limit must be between 1 and 50'); return; }
     
-    setSaving(true);
-    if (existingId) {
-      await updateRow('automation_rules', existingId, form);
-    } else {
-      await createRow('automation_rules', form);
+    try {
+      setSaving(true);
+      if (existingId) {
+        await updateRow('automation_rules', existingId, form);
+      } else {
+        const created = await createRow('automation_rules', form);
+        setExistingId(created?.id || null);
+      }
+      queryClient.invalidateQueries({ queryKey: ['automationRules'] });
+      toast.success('Automation rules saved');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to save automation rules');
+    } finally {
+      setSaving(false);
     }
-    queryClient.invalidateQueries({ queryKey: ['automationRules'] });
-    toast.success('Automation rules saved');
-    setSaving(false);
   };
 
   if (isLoading) {

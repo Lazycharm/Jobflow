@@ -63,18 +63,26 @@ export default function Resumes() {
   };
 
   const handleDelete = async (id) => {
-    await deleteRow('resumes', id);
-    toast.success('Resume deleted');
-    queryClient.invalidateQueries({ queryKey: ['resumes'] });
+    try {
+      await deleteRow('resumes', id);
+      toast.success('Resume deleted');
+      queryClient.invalidateQueries({ queryKey: ['resumes'] });
+    } catch (error) {
+      toast.error(error?.message || 'Failed to delete resume');
+    }
   };
 
   const handleSetDefault = async (resume) => {
-    // Unset all defaults, then set the selected one
-    await Promise.all(resumes.map(r =>
-      updateRow('resumes', r.id, { is_default: r.id === resume.id })
-    ));
-    toast.success(`"${resume.name}" set as default`);
-    queryClient.invalidateQueries({ queryKey: ['resumes'] });
+    try {
+      // Unset all defaults, then set the selected one
+      await Promise.all(resumes.map(r =>
+        updateRow('resumes', r.id, { is_default: r.id === resume.id })
+      ));
+      toast.success(`"${resume.name}" set as default`);
+      queryClient.invalidateQueries({ queryKey: ['resumes'] });
+    } catch (error) {
+      toast.error(error?.message || 'Failed to set default resume');
+    }
   };
 
   return (

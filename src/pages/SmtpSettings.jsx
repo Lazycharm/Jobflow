@@ -60,45 +60,61 @@ export default function SmtpSettings() {
     if (!form.from_email.trim()) { toast.error('From email is required'); return; }
     if (!form.username.trim()) { toast.error('Username is required'); return; }
 
-    setSaving(true);
-    const data = { ...form, is_configured: true };
-    if (!data.password_encrypted) delete data.password_encrypted; // Don't overwrite with empty
+    try {
+      setSaving(true);
+      const data = { ...form, is_configured: true };
+      if (!data.password_encrypted) delete data.password_encrypted; // Don't overwrite with empty
 
-    if (existingId) {
-      await updateRow('smtp_settings', existingId, data);
-    } else {
-      await createRow('smtp_settings', data);
+      if (existingId) {
+        await updateRow('smtp_settings', existingId, data);
+      } else {
+        const created = await createRow('smtp_settings', data);
+        setExistingId(created?.id || null);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['smtpSettings'] });
+      toast.success('SMTP settings saved');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to save SMTP settings');
+    } finally {
+      setSaving(false);
     }
-
-    queryClient.invalidateQueries({ queryKey: ['smtpSettings'] });
-    toast.success('SMTP settings saved');
-    setSaving(false);
   };
 
   const handleTestConnection = async () => {
     if (!form.host.trim()) { toast.error('Save settings first'); return; }
-    setTesting(true);
-    // Simulate test - in production this would use a backend function
-    await new Promise(r => setTimeout(r, 1500));
-    toast.success('SMTP connection test successful');
-    setTesting(false);
+    try {
+      setTesting(true);
+      // Simulate test - in production this would use a backend function
+      await new Promise(r => setTimeout(r, 1500));
+      toast.success('SMTP connection test successful');
+    } catch (error) {
+      toast.error(error?.message || 'SMTP connection test failed');
+    } finally {
+      setTesting(false);
+    }
   };
 
   const handleSendTestEmail = async () => {
     if (!testEmail.trim()) { toast.error('Enter a test email address'); return; }
     if (!existingId) { toast.error('Save SMTP settings first'); return; }
     
-    setSendingTest(true);
-    const { error } = await supabase.functions.invoke('send-email', {
-      body: {
-        to: testEmail,
-        subject: 'JobFlow CRM - SMTP Test Email',
-        body: `<p>This is a test email from JobFlow CRM.</p><p>Your SMTP settings are working correctly.</p><p>Sent from: ${form.from_name} (${form.from_email})</p>`,
-      },
-    });
-    if (error) throw error;
-    toast.success('Test email sent successfully');
-    setSendingTest(false);
+    try {
+      setSendingTest(true);
+      const { error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: testEmail,
+          subject: 'JobFlow CRM - SMTP Test Email',
+          body: `<p>This is a test email from JobFlow CRM.</p><p>Your SMTP settings are working correctly.</p><p>Sent from: ${form.from_name} (${form.from_email})</p>`,
+        },
+      });
+      if (error) throw error;
+      toast.success('Test email sent successfully');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to send test email');
+    } finally {
+      setSendingTest(false);
+    }
   };
 
   if (isLoading) {

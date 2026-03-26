@@ -104,17 +104,22 @@ export default function ApplicationForm() {
 
   const handleSave = async () => {
     if (!validate()) return;
-    setSaving(true);
-    if (isNew) {
-      await createRow('job_applications', form);
-      toast.success('Application saved as draft');
-    } else {
-      await updateRow('job_applications', editId, form);
-      toast.success('Application updated');
+    try {
+      setSaving(true);
+      if (isNew) {
+        await createRow('job_applications', form);
+        toast.success('Application saved as draft');
+      } else {
+        await updateRow('job_applications', editId, form);
+        toast.success('Application updated');
+      }
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      navigate('/applications');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to save application');
+    } finally {
+      setSaving(false);
     }
-    queryClient.invalidateQueries({ queryKey: ['applications'] });
-    setSaving(false);
-    navigate('/applications');
   };
 
   const handleSendNow = async () => {
@@ -123,64 +128,69 @@ export default function ApplicationForm() {
       toast.error('Please select an initial email template');
       return;
     }
-    setSending(true);
+    try {
+      setSending(true);
 
-    const user = await getCurrentUserProfile();
-    const template = templates.find(t => t.id === form.initial_template_id);
-    const rendered = renderTemplate(template, { ...form, user_name: user?.full_name || '' });
+      const user = await getCurrentUserProfile();
+      const template = templates.find(t => t.id === form.initial_template_id);
+      const rendered = renderTemplate(template, { ...form, user_name: user?.full_name || '' });
 
-    let appId = editId;
-    if (isNew) {
-      const created = await createRow('job_applications', {
-        ...form,
-        status: 'Sent',
-        follow_up_stage: 0,
-        last_sent_at: new Date().toISOString(),
-      });
-      appId = created.id;
-    } else {
-      await updateRow('job_applications', editId, {
-        ...form,
-        status: 'Sent',
-        follow_up_stage: 0,
-        last_sent_at: new Date().toISOString(),
-      });
-    }
+      let appId = editId;
+      if (isNew) {
+        const created = await createRow('job_applications', {
+          ...form,
+          status: 'Sent',
+          follow_up_stage: 0,
+          last_sent_at: new Date().toISOString(),
+        });
+        appId = created.id;
+      } else {
+        await updateRow('job_applications', editId, {
+          ...form,
+          status: 'Sent',
+          follow_up_stage: 0,
+          last_sent_at: new Date().toISOString(),
+        });
+      }
 
-    // Record the sent email
-    await createRow('email_messages', {
-      application_id: appId,
-      template_id: form.initial_template_id,
-      direction: 'outbound',
-      subject: rendered.subject,
-      body: rendered.body,
-      sent_at: new Date().toISOString(),
-      status: 'sent',
-      stage: 'initial',
-    });
-
-    // Schedule follow-up 1 if automation enabled
-    if (form.automation_enabled && form.followup1_template_id) {
-      const rule = rules[0] || { followup1_delay_days: 3, send_time_hour: 9 };
-      const fu1Date = calculateFollowUpDate(new Date(), rule.followup1_delay_days || 3, rule.send_time_hour || 9);
-      await createRow('scheduled_emails', {
+      // Record the sent email
+      await createRow('email_messages', {
         application_id: appId,
-        template_id: form.followup1_template_id,
-        scheduled_for: fu1Date.toISOString(),
-        stage: 'follow_up_1',
-        status: 'pending',
-        attempts: 0,
+        template_id: form.initial_template_id,
+        direction: 'outbound',
+        subject: rendered.subject,
+        body: rendered.body,
+        sent_at: new Date().toISOString(),
+        status: 'sent',
+        stage: 'initial',
       });
-      await updateRow('job_applications', appId, {
-        next_scheduled_at: fu1Date.toISOString(),
-      });
-    }
 
-    toast.success('Application email sent successfully');
-    queryClient.invalidateQueries({ queryKey: ['applications'] });
-    queryClient.invalidateQueries({ queryKey: ['scheduled'] });
-    setSending(false);
-    navigate('/applications');
+      // Schedule follow-up 1 if automation enabled
+      if (form.automation_enabled && form.followup1_template_id) {
+        const rule = rules[0] || { followup1_delay_days: 3, send_time_hour: 9 };
+        const fu1Date = calculateFollowUpDate(new Date(), rule.followup1_delay_days || 3, rule.send_time_hour || 9);
+        await createRow('scheduled_emails', {
+          application_id: appId,
+          template_id: form.followup1_template_id,
+          scheduled_for: fu1Date.toISOString(),
+          stage: 'follow_up_1',
+          status: 'pending',
+          attempts: 0,
+        });
+        await updateRow('job_applications', appId, {
+          next_scheduled_at: fu1Date.toISOString(),
+        });
+      }
+
+      toast.success('Application email sent successfully');
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['scheduled'] });
+      navigate('/applications');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to send application email');
+    } finally {
+      setSending(false);
+    }
   };
 
   const initialTemplates = templates.filter(t => t.template_type === 'initial' || t.template_type === 'custom');
