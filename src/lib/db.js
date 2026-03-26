@@ -30,6 +30,9 @@ export const filterRows = (table, filters = {}, orderBy = null, limit = null) =>
 
 export const createRow = async (table, values) => {
   const user = await getCurrentUser();
+  if (!user && table !== 'profiles') {
+    throw new Error('You must be logged in to save data.');
+  }
   const insertValues = { ...values };
   if (user && !('user_id' in insertValues) && table !== 'profiles') {
     insertValues.user_id = user.id;

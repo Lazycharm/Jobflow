@@ -1,59 +1,105 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { filterRows, getCurrentUserProfile, listRows } from '@/lib/db';
-import { Link } from 'react-router-dom';
-import { 
-  Briefcase, Clock, Send, MessageSquare, Calendar, 
-  XCircle, Archive, AlertCircle, ArrowRight 
-} from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { createRow, deleteRow, getCurrentUser, listRows, updateRow } from '@/lib/db';
+import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
-import StatsCard from '@/components/shared/StatsCard';
-import StatusBadge from '@/components/shared/StatusBadge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
+import { renderTemplate } from '@/lib/automationUtils';
 
-export default function Dashboard() {
-  const { data: applications = [], isLoading: loadingApps } = useQuery({
-    queryKey: ['applications'],
-    queryFn: () => listRows('job_applications', '-created_at'),
+const typeLabels = {
+  initial: 'Initial',
+  follow_up_1: 'Follow-up 1',
+  follow_up_2: 'Follow-up 2',
+  custom: 'Custom',
+};
+
+const typeColors = {
+  initial: 'bg-blue-50 text-blue-700 border-blue-200',
+  follow_up_1: 'bg-amber-50 text-amber-700 border-amber-200',
+  follow_up_2: 'bg-purple-50 text-purple-700 border-purple-200',
+  custom: 'bg-gray-50 text-gray-600 border-gray-200',
+};
+
+const emptyForm = { name: '', template_type: 'initial', subject: '', body: '' };
+
+export default function EmailTemplates() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [previewData, setPreviewData] = useState(null);
+  const queryClient = useQueryClient();
+
+  const { data: templates = [], isLoading } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () => listRows('email_templates', '-created_at'),
   });
 
-  const { data: scheduled = [], isLoading: loadingSched } = useQuery({
-    queryKey: ['scheduled'],
-    queryFn: () => filterRows('scheduled_emails', { status: 'pending' }, 'scheduled_for', 10),
+  const saveMutation = useMutation({
+    mutationFn: (data) => (editId
+      ? updateRow('email_templates', editId, data)
+      : createRow('email_templates', data)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+      setDialogOpen(false);
+      setEditId(null);
+      setForm(emptyForm);
+      toast.success(editId ? 'Template updated' : 'Template created');
+    },
+    onError: (error) => {
+      toast.error(error?.message || 'Failed to save template');
+    },
   });
 
-  const { data: user } = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: getCurrentUserProfile,
+  const deleteMutation = useMutation({
+    mutationFn: (id) => deleteRow('email_templates', id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+      toast.success('Template deleted');
+    },
+    onError: (error) => {
+      toast.error(error?.message || 'Failed to delete template');
+    },
   });
 
-  const stats = {
-    total: applications.length,
-    scheduled: applications.filter(a => a.status === 'Scheduled').length,
-    sent: applications.filter(a => a.status === 'Sent').length,
-    replied: applications.filter(a => a.status === 'Replied').length,
-    interview: applications.filter(a => a.status === 'Interview').length,
-    rejected: applications.filter(a => a.status === 'Rejected').length,
-    closed: applications.filter(a => a.status === 'Closed').length,
+  const openNew = () => { setEditId(null); setForm(emptyForm); setDialogOpen(true); };
+  const openEdit = (t) => {
+    setEditId(t.id);
+    setForm({ name: t.name, template_type: t.template_type, subject: t.subject, body: t.body });
+    setDialogOpen(true);
   };
 
-  const needsAttention = applications.filter(a => 
-    a.status === 'Sent' && !a.replied && !a.automation_enabled
-  );
+  const openPreview = (t) => {
+    const sample = {
+      contact_name: 'Sarah Johnson',
+      company_name: 'TechCorp Inc.',
+      role_title: 'Senior Software Engineer',
+      user_name: 'Alex Smith',
+    };
+    setPreviewData(renderTemplate(t, sample));
+    setPreviewOpen(true);
+  };
 
-  const recentReplies = applications
-    .filter(a => a.replied)
-    .sort((a, b) => {
-      const bTime = new Date(b.replied_at || b.updated_at).getTime();
-      const aTime = new Date(a.replied_at || a.updated_at).getTime();
-      return bTime - aTime;
-    })
-    .slice(0, 5);
-
-  const isLoading = loadingApps || loadingSched;
+  const handleSave = async () => {
+    if (!form.name.trim()) { toast.error('Template name required'); return; }
+    if (!form.subject.trim()) { toast.error('Subject required'); return; }
+    if (!form.body.trim()) { toast.error('Body required'); return; }
+    const user = await getCurrentUser();
+    if (!user) {
+      toast.error('You are not logged in. Please log in and try again.');
+      return;
+    }
+    saveMutation.mutate(form);
+  };
 
   if (isLoading) {
     return (
@@ -64,118 +110,120 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <PageHeader 
-        title={`Welcome back${user?.full_name ? `, ${user.full_name}` : ''}`}
-        description="Your job application pipeline at a glance"
-      >
-        <Link to="/applications/new">
-          <Button>New Application</Button>
-        </Link>
+    <div className="max-w-5xl mx-auto">
+      <PageHeader title="Email Templates" description="Create reusable email templates with variable support">
+        <Button onClick={openNew}><Plus className="w-4 h-4 mr-2" /> New Template</Button>
       </PageHeader>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-8">
-        <StatsCard label="Total" value={stats.total} icon={Briefcase} />
-        <StatsCard label="Scheduled" value={stats.scheduled} icon={Clock} color="text-blue-600" />
-        <StatsCard label="Sent" value={stats.sent} icon={Send} color="text-emerald-600" />
-        <StatsCard label="Replied" value={stats.replied} icon={MessageSquare} color="text-purple-600" />
-        <StatsCard label="Interview" value={stats.interview} icon={Calendar} color="text-amber-600" />
-        <StatsCard label="Rejected" value={stats.rejected} icon={XCircle} color="text-red-500" />
-        <StatsCard label="Closed" value={stats.closed} icon={Archive} color="text-gray-500" />
-      </div>
+      <p className="text-xs text-muted-foreground mb-6">
+        Available variables: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{'{{contact_name}}'}</code>{' '}
+        <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{'{{company}}'}</code>{' '}
+        <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{'{{role_title}}'}</code>{' '}
+        <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{'{{user_name}}'}</code>
+      </p>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Upcoming Scheduled */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Upcoming Emails</CardTitle>
-              <Link to="/applications" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                View all <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {scheduled.length === 0 ? (
-              <EmptyState icon={Clock} title="No upcoming emails" description="Scheduled emails will appear here" />
-            ) : (
-              <div className="space-y-3">
-                {scheduled.slice(0, 5).map(sched => {
-                  const app = applications.find(a => a.id === sched.application_id);
-                  return (
-                    <div key={sched.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{app?.company_name || 'Unknown'}</p>
-                        <p className="text-xs text-muted-foreground">{app?.role_title} · {sched.stage?.replace('_', ' ')}</p>
-                      </div>
-                      <div className="text-xs text-muted-foreground whitespace-nowrap ml-3">
-                        {format(new Date(sched.scheduled_for), 'MMM d, h:mm a')}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
+      {templates.length === 0 ? (
+        <Card className="p-6">
+          <EmptyState title="No templates yet" description="Create your first email template to get started">
+            <Button onClick={openNew}><Plus className="w-4 h-4 mr-2" /> Create Template</Button>
+          </EmptyState>
         </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {templates.map(t => (
+            <Card key={t.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-base">{t.name}</CardTitle>
+                    <Badge variant="outline" className={`mt-1 text-xs ${typeColors[t.template_type]}`}>
+                      {typeLabels[t.template_type]}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => openPreview(t)}>
+                      <Eye className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => openEdit(t)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="w-8 h-8 text-destructive" onClick={() => deleteMutation.mutate(t.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-1"><span className="font-medium text-foreground">Subject:</span> {t.subject}</p>
+                <p className="text-xs text-muted-foreground line-clamp-3">{t.body}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-        {/* Recent Replies */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Recent Replies</CardTitle>
-              <Link to="/replies" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                View all <ArrowRight className="w-3 h-3" />
-              </Link>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editId ? 'Edit Template' : 'New Template'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Template Name</Label>
+              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Initial Application" />
             </div>
-          </CardHeader>
-          <CardContent>
-            {recentReplies.length === 0 ? (
-              <EmptyState icon={MessageSquare} title="No replies yet" description="Replies will show here when detected" />
-            ) : (
-              <div className="space-y-3">
-                {recentReplies.map(app => (
-                  <div key={app.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{app.company_name}</p>
-                      <p className="text-xs text-muted-foreground">{app.role_title} · {app.contact_name}</p>
-                    </div>
-                    <StatusBadge status={app.status} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={form.template_type} onValueChange={v => setForm({ ...form, template_type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="initial">Initial Application</SelectItem>
+                  <SelectItem value="follow_up_1">Follow-up 1</SelectItem>
+                  <SelectItem value="follow_up_2">Follow-up 2</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Input value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} placeholder="Application for {{role_title}} at {{company}}" />
+            </div>
+            <div className="space-y-2">
+              <Label>Body</Label>
+              <Textarea value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} rows={8} placeholder={"Dear {{contact_name}},\n\nI'm writing to express my interest in..."} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>Save Template</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Needs Attention */}
-        {needsAttention.length > 0 && (
-          <Card className="lg:col-span-2 border-amber-200 bg-amber-50/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600" />
-                Needs Attention
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {needsAttention.slice(0, 5).map(app => (
-                  <div key={app.id} className="flex items-center justify-between py-2">
-                    <div>
-                      <p className="text-sm font-medium">{app.company_name} — {app.role_title}</p>
-                      <p className="text-xs text-muted-foreground">Automation paused, no reply yet</p>
-                    </div>
-                    <Link to={`/applications/${app.id}`}>
-                      <Button variant="outline" size="sm">Review</Button>
-                    </Link>
-                  </div>
-                ))}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Template Preview</DialogTitle>
+          </DialogHeader>
+          {previewData && (
+            <div className="space-y-4 py-2">
+              <div>
+                <Label className="text-xs text-muted-foreground">Subject</Label>
+                <p className="text-sm font-medium mt-1 p-3 bg-muted rounded-lg">{previewData.subject}</p>
               </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Body</Label>
+                <div className="text-sm mt-1 p-4 bg-muted rounded-lg whitespace-pre-wrap leading-relaxed">
+                  {previewData.body}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground italic">
+                Sample values: Sarah Johnson (contact), TechCorp Inc. (company), Senior Software Engineer (role), Alex Smith (user)
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
