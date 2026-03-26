@@ -25,14 +25,6 @@ export default function Replies() {
 
   const repliedApps = applications.filter(a => a.replied);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-5xl mx-auto">
       <PageHeader title="Replies" description="Track replies and updated application statuses" />

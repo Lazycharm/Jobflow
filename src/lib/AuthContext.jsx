@@ -48,10 +48,10 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       if (isAuthLockError(error)) {
-        // Temporary lock contention during concurrent auth reads; retry once.
-        setTimeout(() => {
-          checkAuth();
-        }, 150);
+        // Lock contention should not block UI; send user to login screen.
+        setUser(null);
+        setIsAuthenticated(false);
+        setAuthError(null);
         return;
       }
       console.error('Supabase auth check failed:', error);

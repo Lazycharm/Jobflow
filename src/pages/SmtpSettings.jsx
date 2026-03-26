@@ -11,18 +11,20 @@ import { toast } from 'sonner';
 import { Save, Send, Loader2, CheckCircle, Shield } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 
+const smtpDefaults = {
+  host: import.meta.env.VITE_SMTP_DEFAULT_HOST || '',
+  port: Number(import.meta.env.VITE_SMTP_DEFAULT_PORT || 587),
+  username: import.meta.env.VITE_SMTP_DEFAULT_USERNAME || '',
+  password_encrypted: import.meta.env.VITE_SMTP_DEFAULT_PASSWORD || '',
+  encryption: import.meta.env.VITE_SMTP_DEFAULT_ENCRYPTION || 'TLS',
+  from_name: import.meta.env.VITE_SMTP_DEFAULT_FROM_NAME || '',
+  from_email: import.meta.env.VITE_SMTP_DEFAULT_FROM_EMAIL || '',
+  reply_to: import.meta.env.VITE_SMTP_DEFAULT_REPLY_TO || '',
+};
+
 export default function SmtpSettings() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    host: '',
-    port: 587,
-    username: '',
-    password_encrypted: '',
-    encryption: 'TLS',
-    from_name: '',
-    from_email: '',
-    reply_to: '',
-  });
+  const [form, setForm] = useState(smtpDefaults);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState('');
@@ -48,6 +50,9 @@ export default function SmtpSettings() {
         from_email: s.from_email || '',
         reply_to: s.reply_to || '',
       });
+    } else {
+      // No saved DB config yet: prefill from local env defaults.
+      setForm(smtpDefaults);
     }
   }, [settings]);
 
@@ -116,14 +121,6 @@ export default function SmtpSettings() {
       setSendingTest(false);
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-3xl mx-auto">

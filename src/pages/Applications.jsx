@@ -81,14 +81,6 @@ export default function Applications() {
     });
   }, [applications, search, statusFilter, repliedFilter]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-7xl mx-auto">
       <PageHeader title="Applications" description="Manage your job applications">

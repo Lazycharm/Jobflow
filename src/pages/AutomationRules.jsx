@@ -67,14 +67,6 @@ export default function AutomationRules() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-3xl mx-auto">
       <PageHeader title="Automation Rules" description="Configure how follow-up emails are scheduled and sent" />
