@@ -51,14 +51,12 @@ export const deleteRow = async (table, id) => {
 };
 
 export const getCurrentUser = async () => {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) {
-    if (error.name === 'AuthSessionMissingError') {
-      return null;
-    }
-    throw error;
-  }
-  return data.user;
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+  if (error) throw error;
+  return session?.user ?? null;
 };
 
 export const getCurrentUserProfile = async () => {
