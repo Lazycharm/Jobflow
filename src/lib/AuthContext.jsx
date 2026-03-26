@@ -3,6 +3,11 @@ import { supabase } from '@/lib/supabaseClient';
 import { getCurrentUserProfile } from '@/lib/db';
 
 const AuthContext = createContext();
+const isAuthLockError = (error) => {
+  const name = error?.name || '';
+  const message = error?.message || '';
+  return name.includes('NavigatorLockAcquireTimeoutError') || message.includes('another request stole it');
+};
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -42,6 +47,13 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
       }
     } catch (error) {
+      if (isAuthLockError(error)) {
+        // Temporary lock contention during concurrent auth reads; retry once.
+        setTimeout(() => {
+          checkAuth();
+        }, 150);
+        return;
+      }
       console.error('Supabase auth check failed:', error);
       setAuthError({
         type: 'auth_required',

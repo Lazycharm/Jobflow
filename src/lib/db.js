@@ -1,5 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
 
+const isAuthLockError = (error) => {
+  const name = error?.name || '';
+  const message = error?.message || '';
+  return name.includes('NavigatorLockAcquireTimeoutError') || message.includes('another request stole it');
+};
+
 const run = async (query) => {
   const { data, error } = await query;
   if (error) throw error;
@@ -51,12 +57,19 @@ export const deleteRow = async (table, id) => {
 };
 
 export const getCurrentUser = async () => {
-  const {
-    data: { session },
-    error,
-  } = await supabase.auth.getSession();
-  if (error) throw error;
-  return session?.user ?? null;
+  try {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+    if (error) throw error;
+    return session?.user ?? null;
+  } catch (error) {
+    if (isAuthLockError(error)) {
+      return null;
+    }
+    throw error;
+  }
 };
 
 export const getCurrentUserProfile = async () => {
